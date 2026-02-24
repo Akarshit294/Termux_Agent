@@ -27,7 +27,7 @@ def get_logger(module_name: str, process_name: str = "system"):
             # Set to 2048 (2KB) for testing, change back to 5*1024*1024 for prod
             file_handler = RotatingFileHandler(
                 file_path,
-                maxBytes=2048, 
+                maxBytes=2 * 1024 * 1024, 
                 backupCount=3
             )
             console_handler = logging.StreamHandler()

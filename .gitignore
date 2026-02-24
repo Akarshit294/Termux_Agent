@@ -1,4 +1,4 @@
 .env
 venv/
 logs/
-_pycache_/
+__pycache__/
