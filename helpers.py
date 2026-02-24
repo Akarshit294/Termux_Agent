@@ -1,6 +1,10 @@
 import os
 import requests
 from dotenv import load_dotenv
+from logger import get_logger
+
+# Initialize it with the name of the current file
+log = get_logger(__name__)
 
 load_dotenv()
 
@@ -15,5 +19,5 @@ async def reply_to_me(text: str):
     chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
     for chunk in chunks:
         req = requests.post(url, json={"chat_id": CHAT_ID, "text": chunk})
-        print(req.status_code)
-        print(req.json())
+        log.info(req.status_code)
+        log.info(req.json())
