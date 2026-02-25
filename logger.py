@@ -2,11 +2,12 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# Cache to share file handlers across different modules in the same process
 _HANDLERS = {}
+
 
 def get_logger(module_name: str, process_name: str = "system"):
     """
@@ -16,20 +17,18 @@ def get_logger(module_name: str, process_name: str = "system"):
     logger = logging.getLogger(module_name)
     logger.setLevel(logging.INFO)
     
-    # Prevent logs from bubbling up to the root logger and printing twice
     logger.propagate = False
 
     if not logger.handlers:
-        # If we haven't created handlers for this process yet, build them
         if process_name not in _HANDLERS:
             file_path = os.path.join(LOG_DIR, f"{process_name}.log")
             
-            # Set to 2048 (2KB) for testing, change back to 5*1024*1024 for prod
             file_handler = RotatingFileHandler(
                 file_path,
-                maxBytes=2 * 1024 * 1024, 
-                backupCount=3
+                maxBytes=5 * 1024 * 1024, 
+                backupCount=2
             )
+
             console_handler = logging.StreamHandler()
 
             formatter = logging.Formatter(
@@ -40,10 +39,8 @@ def get_logger(module_name: str, process_name: str = "system"):
             file_handler.setFormatter(formatter)
             console_handler.setFormatter(formatter)
             
-            # Save these handlers in the cache
             _HANDLERS[process_name] = [file_handler, console_handler]
 
-        # Attach the cached handlers to this specific module's logger
         for handler in _HANDLERS[process_name]:
             logger.addHandler(handler)
 
