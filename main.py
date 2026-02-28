@@ -1,69 +1,39 @@
 import asyncio
-import os
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram import Bot, Dispatcher, types, Router
 
-from helpers import BOT_TOKEN, CHAT_ID, reply_to_me
+from utils.config import config
+from utils.helpers import reply_to_me
 from llm.llm_gateway import llm_worker
 from pipeline.telegram_pipeline import handle_telegram_chat
-from database.telegram_db import init_db, clear_telegram_history
+from database.telegram_db import init_db
+from handlers.telegram_commands import admin_router
+from services.task_manager import TaskManager
+from middlewares import AuthMiddleware
 
-from dotenv import load_dotenv
-from logger import get_logger
+from utils.logger import get_logger
 
 
 log = get_logger(__name__, process_name = "main")
-load_dotenv()
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=config.bot_token)
 dp = Dispatcher()
 
+chat_router = Router()
 
-def is_authorized(message: types.Message) -> bool:
-    """
-    Only respond to my messages
-    """
-    return str(message.chat.id) == str(CHAT_ID)
-
-
-@dp.message(Command("clear"))
-async def handle_clear_command(message: types.Message):
-    """The Memory Reset Switch"""
-    if not is_authorized(message): return
-    
-    await clear_telegram_history()
-    
-    try:
-        await message.delete()
-    except Exception:
-        pass
-        
-    separator = "━" * 40
-    blank_slate = (
-        "\n" * 15 +  # push content off screen
-        f"{separator}\n"
-        f"🧹   MEMORY CLEARED   🧹\n"
-        f"{separator}\n"
-        "\n" * 5 +
-        "✨ Fresh start. Clean slate. ✨"
-    )
-    await reply_to_me(blank_slate)
-
-
-@dp.message()
+@chat_router.message()
 async def handle_message(message: types.Message):
     """
-    Telegram's decorator for handling incoming messages
+    LLM Chat Handler. This runs ONLY if no command handlers matched.
     """
-    if not is_authorized(message):
-        return  
+    text = message.text.strip() if message.text else ""
+    if not text:
+        return
 
-    text = message.text.strip()
     log.info("User Message: %s", text)
 
     if text.startswith("!run "):
         command = text[len("!run "):]
-        await reply_to_me(f"⚡ Run command: `{command}`")
+        # We will execute the command directly here!
         return
 
     response = await handle_telegram_chat(text)
@@ -76,8 +46,20 @@ async def main():
     2. Runs Polling task asynchronously.
     """
     log.info("MAIN STARTED!")
+
     await init_db()
     log.info("Database verified.")
+
+    task_manager = await TaskManager.create()
+
+    dp["task_manager"] = task_manager
+    
+    dp.message.middleware(AuthMiddleware())
+
+    dp.include_router(admin_router)
+    dp.include_router(chat_router)
+
+    log.info("Task manager and routers are initialized.")
 
     await reply_to_me("Termux agent is online.")
 

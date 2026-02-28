@@ -1,11 +1,13 @@
 import asyncio
 import time
 from functools import wraps
-from logger import get_logger
+from utils.logger import get_logger
 
 
 log = get_logger(__name__)
 llm_queue = asyncio.PriorityQueue()
+queue_pause_event = asyncio.Event()
+queue_pause_event.set()
 
 
 ROUTING_RULES = {
@@ -22,6 +24,8 @@ async def llm_worker():
     log.info("LLM Gateway Worker started.")
     
     while True:
+        await queue_pause_event.wait()
+        
         # 1. Grab the highest priority item from the queue
         priority, _, func, payload, caller, max_retries, future = await llm_queue.get()
         
@@ -51,7 +55,7 @@ async def llm_worker():
             
         # 4. Tell the queue this task is officially done
         llm_queue.task_done()
-        
+
 
 def llm_gateway(func):
     """

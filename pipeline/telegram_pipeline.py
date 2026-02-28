@@ -1,44 +1,44 @@
-from database.telegram_db import get_telegram_history, save_telegram_message
+from services.chat_service import ChatService
 from llm.gemini_llm import call_gemini_raw
-from logger import get_logger
-
+from prompts.loader import get_prompt
+from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-
-def get_system_prompt() -> str:
-    try:
-        with open("system_prompt.txt", "r") as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return "You are a concise Termux Linux assistant."
-
-
 async def handle_telegram_chat(user_message: str) -> str:
     """
-    Get response to user message sent on telegram
+    Orchestrates the flow of a single chat turn:
+    1. Fetch optimized history (from ChatService).
+    2. Request response from LLM (from LLM Gateway).
+    3. Save the interaction (from ChatService).
     """
-    # 1. Fetch history
-    history = await get_telegram_history(limit=10)
+    chat_service = ChatService()
+    
+    # 1. Fetch optimized history (already in Gemini format)
+    history = await chat_service.get_optimized_history( max_chars=4000 )
     
     # 2. Append new message
     history.append({"role": "user", "parts": [{"text": user_message}]})
     
-    # 3. Build payload
-    payload = {
-        "systemInstruction": {"parts": [{"text": get_system_prompt()}]},
-        "contents": history
-    }
-    
-    # 4. Call Gateway
+    # 3. Request from LLM
     try:
+        # Build payload with "telegram" pipeline for merged context
+        system_prompt = get_prompt("termux_assistant.txt", pipeline="telegram")
+        
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": history
+        }
+        
         response_text = await call_gemini_raw(payload, caller="telegram")
     except Exception as e:
-        log.error(f"Pipeline failed: {e}")
+        log.error(f"Pipeline failed at LLM step: {e}")
         return "⚠️ Brain connection failed."
 
-    # 5. Persist to SQLite
-    await save_telegram_message("user", user_message)
-    await save_telegram_message("model", response_text)
+    # 4. Persist to SQLite using the service
+    try:
+        await chat_service.save_interaction(user_message, response_text)
+    except Exception as e:
+        log.warning(f"Failed to persist chat interaction: {e}")
     
     return response_text
