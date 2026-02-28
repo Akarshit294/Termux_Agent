@@ -1,11 +1,6 @@
 
-1. Maintain read.md for llm context. Refactor for cleaner architecture
 2. Chat Agent Loop
-    -Add pydantic class for response
     -Add tool with precautions and a func to run command in terminal
-    -Add loop until end res
-    -Write prompt
-    -Hold llm_worker until finishes
 4. Add health checking loops + auto reply for bad health + manual heath check with reply
 5. Add Book Processing Pipeline
     -Fetch Book

@@ -27,7 +27,7 @@ async def llm_worker():
         await queue_pause_event.wait()
         
         # 1. Grab the highest priority item from the queue
-        priority, _, func, payload, caller, max_retries, future = await llm_queue.get()
+        priority, _, func, payload, args, kwargs, caller, max_retries, future = await llm_queue.get()
         
         log.info(f"[{caller}] Worker picked up request (Priority {priority}).")
         
@@ -35,8 +35,8 @@ async def llm_worker():
         success = False
         for attempt in range(max_retries):
             try:
-                # Execute the pure network function
-                result = await func(payload)
+                # Execute the pure network function with args and kwargs
+                result = await func(payload, *args, **kwargs)
                 future.set_result(result)  # Hand the result back to the IOU
                 success = True
                 break  # Exit the retry loop on success
@@ -77,7 +77,7 @@ def llm_gateway(func):
         tie_breaker = time.monotonic() 
         
         # Package the task and put it in the queue
-        task_package = (priority, tie_breaker, func, payload, caller, max_retries, future)
+        task_package = (priority, tie_breaker, func, payload, args, kwargs, caller, max_retries, future)
         await llm_queue.put(task_package)
         
         log.info(f"[{caller}] {desc} queued at Priority {priority}.")

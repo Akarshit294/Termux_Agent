@@ -13,12 +13,21 @@ log = get_logger(__name__, process_name="supervisor")
 
 admin_router = Router()
 
+import inspect
+from functools import wraps
+
 # A simple decorator-like approach for logging commands
 def log_command(handler):
+    @wraps(handler)
     async def wrapper(message: types.Message, *args, **kwargs):
         command_text = message.text.split()[0] if message.text else "unknown"
         log.info(f"Command received: {command_text} from {message.chat.id}")
-        return await handler(message, *args, **kwargs)
+        
+        # Filter kwargs to only include what the handler expects
+        sig = inspect.signature(handler)
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+        
+        return await handler(message, *args, **filtered_kwargs)
     return wrapper
 
 
